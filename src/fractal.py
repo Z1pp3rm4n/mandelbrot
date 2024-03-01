@@ -8,6 +8,10 @@ REDRAW_PERCENT = 0.75
 SIM_RANGE = 100
 MAX_ITER = 1000
 
+vec3 = ti.types.vector(3,float)
+a,b,c,d = vec3(0.5,0.5,0.5),vec3(0.5,0.5,0.5),vec3(1.0,1.0,1.0),vec3(0.0,0.33,0.67)
+e = vec3(0.3,0.5,0.8)
+
 @ti.func
 def find_iter(x: ti.float64, y:ti.float64, x0:ti.float64, y0:ti.float64 , max_iter):
     x2 = x**2
@@ -28,10 +32,14 @@ def mandelbrot_func(zx:ti.float64, zy:ti.float64, cx:ti.float64, cy:ti.float64):
     zy = 2*zx*zy + cy
     return zx,zy
 
+
+
 @ti.func
 def get_color(iter: ti.int32, max_iter: ti.int32):
     # col = ti.cast((iter/max_iter * 255), ti.int32)
-    return 0 if iter == max_iter else ti.cast((iter/max_iter * 255), ti.int32)
+    t = iter / max_iter
+    # return 0 if iter == max_iter else ti.cast((iter/max_iter * 255), ti.int32)
+    return e if iter == max_iter else a + b*tm.cos(6.28318*(c*t + d))
 
 
 @ti.data_oriented
@@ -63,14 +71,14 @@ class Fractal:
     def find_iter(self, x: ti.float64, y:ti.float64, bailout, max_iter):
         iter = 0
         zx, zy = ti.float64(0.0), ti.float64(0.0)
-        ptot = 8
+        period = 8
         ckx, cky = zx, zy 
         bail = False
-        while (not bail and ptot != max_iter):
+        while (not bail and period != max_iter):
             ckx,cky = zx,zy
-            ptot += ptot
-            if (ptot > max_iter): ptot = max_iter
-            while(not bail and iter < ptot):
+            period += period
+            if (period > max_iter): period = max_iter
+            while(not bail and iter < period):
                 zx, zy = self.func(zx,zy, x, y)
                 iter += 1
                 if (zx**2 + zy**2 > bailout ** 2): 
@@ -191,9 +199,9 @@ class Fractal:
                 iter = self.find_iter(real, imag, bailout, max_iter)
                 # iter = find_iter(0.0,0.0,real,imag, self.max_iter)
                 col = get_color(iter, max_iter)
-                screen_array[bid, xid,yid, 0] = col
-                screen_array[bid, xid,yid, 1] = col
-                screen_array[bid, xid,yid, 2] = col
+                screen_array[bid, xid,yid, 0] = tm.floor(col.x * 255, dtype=ti.uint32)
+                screen_array[bid, xid,yid, 1] = tm.floor(col.y * 255, dtype=ti.uint32)
+                screen_array[bid, xid,yid, 2] = tm.floor(col.z * 255, dtype=ti.uint32)
 
 
     @ti.kernel
@@ -218,13 +226,45 @@ class Fractal:
             iter = self.find_iter(x,y, bailout, max_iter)
             # iter = find_iter(0.0,0.0,x,y, self.max_iter)
             col = get_color(iter, max_iter)
-
-            screen_array[bid, i, j, 0] = col
-            screen_array[bid, i, j, 1] = col
-            screen_array[bid, i, j, 2] = col
+            screen_array[bid, i, j, 0] = tm.floor(col.x * 255, dtype=ti.int32)
+            screen_array[bid, i, j, 1] = tm.floor(col.y * 255, dtype=ti.int32)
+            screen_array[bid, i, j, 2] = tm.floor(col.z * 255, dtype=ti.int32)            
+            # screen_array[bid, i, j, 0] = col
+            # screen_array[bid, i, j, 1] = col
+            # screen_array[bid, i, j, 2] = col
 
     def update(self):
         self.fast_render()
     
     def get_results(self):
         return self.screen_array[self.buffer_id]
+    
+class Julia(Fractal):
+    def __init__(self, width, height,func, cx, cy):
+        super().__init__(width, height, func)
+        self.cx = cx
+        self.cy = cy
+
+    @ti.func
+    def find_iter(self, x: ti.float64, y: ti.float64, bailout, max_iter):
+        cx = ti.float64(self.cx)
+        cy = ti.float64(self.cy)
+        iter = 0
+        period = 8
+        ckx, cky = x, y
+        bail = False
+        while (not bail and period != max_iter):
+            ckx,cky = x,y
+            period += period
+            if (period > max_iter): period = max_iter
+            while(not bail and iter < period):
+                x, y = self.func(x,y,cx,cy)
+                iter += 1
+                if (x**2 + y**2 > bailout ** 2): 
+                    bail = True
+                if (x == ckx and y == cky):
+                    bail = True 
+                    iter = max_iter
+                
+        return iter
+
