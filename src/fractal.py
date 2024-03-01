@@ -44,9 +44,9 @@ def get_color(iter: ti.int32, max_iter: ti.int32):
 
 @ti.data_oriented
 class Fractal:
-    def __init__(self, width, height, func):
-        self.bailout = 2.0
-        self.max_iter = MAX_ITER
+    def __init__(self, width, height, func, bailout=2.0, max_iter=MAX_ITER):
+        self.bailout = bailout
+        self.max_iter = max_iter
         self.func = func
 
         # Determines the coordinates of the fractal
@@ -58,34 +58,39 @@ class Fractal:
 
         # Memory to save the fractal calculations to / xaos algorithm
         self.buffer_id = 0
-        self.screen_array = np.full((2,self.width, self.height, 3), [0, 0, 0], dtype=np.uint32)
+
+        self.screen_array = np.full((self.width, self.height, 3), [0, 0, 0], dtype=np.uint32)
+        self.iters = ti.field(ti.int32, (2, self.width, self.height))
+        self.pixels_per_iter = ti.field(ti.int32, self.max_iter + 1)
+        self.hues = ti.field(ti.float32, self.max_iter + 1)
+
+
         self.xcoords = ti.field(ti.float64, (2,self.width,))
         self.ycoords = ti.field(ti.float64, (2,self.height,))
         self.xlookup = ti.field(ti.int32, (self.width))
         self.ylookup = ti.field(ti.int32, (self.height,))
 
-        # 
         self.first_render()
 
     @ti.func
-    def find_iter(self, x: ti.float64, y:ti.float64, bailout, max_iter):
+    def find_iter(self, x: ti.float64, y:ti.float64):
         iter = 0
         zx, zy = ti.float64(0.0), ti.float64(0.0)
         period = 8
         ckx, cky = zx, zy 
         bail = False
-        while (not bail and period != max_iter):
+        while (not bail and period != self.max_iter):
             ckx,cky = zx,zy
             period += period
-            if (period > max_iter): period = max_iter
+            if (period > self.max_iter): period = self.max_iter
             while(not bail and iter < period):
                 zx, zy = self.func(zx,zy, x, y)
                 iter += 1
-                if (zx**2 + zy**2 > bailout ** 2): 
+                if (zx**2 + zy**2 > self.bailout ** 2): 
                     bail = True
                 if (zx == ckx and zy == cky):
                     bail = True 
-                    iter = max_iter
+                    iter = self.max_iter
                 
         return iter
 
@@ -97,15 +102,65 @@ class Fractal:
         # 
         # return iter
 
+    @ti.kernel
+    def fill_colors(self, bid:int, screen_array: ti.types.ndarray()): #type: ignore
+        for xid, yid in ti.ndrange(self.width, self.height):
+            col = int(self.iters[bid, xid, yid] / self.max_iter * 255)
+            screen_array[xid, yid, 0] = col
+            screen_array[xid, yid, 1] = col
+            screen_array[xid, yid, 2] = col 
             
+  
+    def update(self):
+        self.fast_render()
+        self.fill_colors(self.buffer_id, self.screen_array)
+    
+    def get_results(self):
+        return self.screen_array
+    
+
+    def first_render(self):
+        self.fill_coords(self.buffer_id, self.x_center, self.y_center, self.scale)
+        self.fill_iters_bruteforce(self.buffer_id)
+
+    @ti.kernel
+    def fill_coords(self, bid: int, x_center: ti.float64, y_center:ti.float64, scale:ti.float64):
+        half_width = self.width //2
+        half_height = self.height //2
+        step = 4.0 / self.height * scale
+        for i in range(self.width):
+            self.xcoords[bid, i] = x_center + (i - half_width)*step
+        for i in range(self.height):
+            self.ycoords[bid, i] = y_center + (i - half_height)*step
+
+
+    @ti.kernel
+    def fill_iters_bruteforce(self, bid: int): # type: ignore
+        for xid, yid in ti.ndrange(self.width, self.height):
+            x = self.xcoords[bid, xid]
+            y = self.ycoords[bid, yid]
+            self.iters[bid,xid,yid] = self.find_iter(x,y)
+       
     def fast_render(self):
         self.buffer_id ^= 1
         self.fill_coords(self.buffer_id, self.x_center, self.y_center, self.scale)
         self.fill_xlookup()
         self.fill_ylookup()
-        self.approximate_pixels(self.bailout, self.max_iter, self.buffer_id, self.screen_array)
-        
+        self.fill_iters_xaos(self.buffer_id)
 
+    @ti.kernel
+    def fill_iters_xaos(self, bid:int): # type: ignore
+        for xid, yid in ti.ndrange(self.width, self.height):
+            xid_best = self.xlookup[xid]
+            yid_best = self.ylookup[yid]
+
+            if (xid_best != -1 and yid_best != -1):
+                self.iters[bid, xid,yid] = self.iters[bid^1, xid_best, yid_best]
+            else:
+                x = self.xcoords[bid, xid]
+                y = self.ycoords[bid, yid]
+                self.iters[bid,xid,yid] = self.find_iter(x,y)
+                
 
     def fill_xlookup(self):
         best = np.zeros(shape=(self.width,), dtype=np.int32)
@@ -183,61 +238,12 @@ class Fractal:
                 self.ylookup[id_origin] = id_best
                 self.ycoords[bid, id_origin] = self.ycoords[bid^1, id_best]    
     
-    @ti.kernel
-    def approximate_pixels(self, bailout:float, max_iter:int, bid:int, screen_array: ti.types.ndarray()): # type: ignore
-        for xid, yid in ti.ndrange(self.width, self.height):
-            xid_best = self.xlookup[xid]
-            yid_best = self.ylookup[yid]
-
-            if (xid_best != -1 and yid_best != -1):
-                screen_array[bid, xid,yid, 0] = screen_array[bid^1, xid_best, yid_best, 0]
-                screen_array[bid, xid,yid, 1] = screen_array[bid^1, xid_best, yid_best, 1]
-                screen_array[bid, xid,yid, 2] = screen_array[bid^1, xid_best, yid_best, 2]
-            else:
-                real = self.xcoords[bid, xid]
-                imag = self.ycoords[bid, yid]
-                iter = self.find_iter(real, imag, bailout, max_iter)
-                # iter = find_iter(0.0,0.0,real,imag, self.max_iter)
-                col = get_color(iter, max_iter)
-                screen_array[bid, xid,yid, 0] = tm.floor(col.x * 255, dtype=ti.uint32)
-                screen_array[bid, xid,yid, 1] = tm.floor(col.y * 255, dtype=ti.uint32)
-                screen_array[bid, xid,yid, 2] = tm.floor(col.z * 255, dtype=ti.uint32)
 
 
-    @ti.kernel
-    def fill_coords(self, bid: int, x_center: ti.float64, y_center:ti.float64, scale:ti.float64):
-        half_width = self.width //2
-        half_height = self.height //2
-        step = 4.0 / self.height * scale
-        for i in range(self.width):
-            self.xcoords[bid, i] = x_center + (i - half_width)*step
-        for i in range(self.height):
-            self.ycoords[bid, i] = y_center + (i - half_height)*step
 
-    def first_render(self):
-        self.fill_coords(self.buffer_id, self.x_center, self.y_center, self.scale)
-        self.calculate_all(self.bailout, self.max_iter, self.buffer_id, self.screen_array)
-    
-    @ti.kernel
-    def calculate_all(self, bailout:float, max_iter:int,  bid: int, screen_array: ti.types.ndarray()): # type: ignore
-        for i,j in ti.ndrange(self.width, self.height):
-            x = self.xcoords[bid, i]
-            y = self.ycoords[bid, j]
-            iter = self.find_iter(x,y, bailout, max_iter)
-            # iter = find_iter(0.0,0.0,x,y, self.max_iter)
-            col = get_color(iter, max_iter)
-            screen_array[bid, i, j, 0] = tm.floor(col.x * 255, dtype=ti.int32)
-            screen_array[bid, i, j, 1] = tm.floor(col.y * 255, dtype=ti.int32)
-            screen_array[bid, i, j, 2] = tm.floor(col.z * 255, dtype=ti.int32)            
-            # screen_array[bid, i, j, 0] = col
-            # screen_array[bid, i, j, 1] = col
-            # screen_array[bid, i, j, 2] = col
 
-    def update(self):
-        self.fast_render()
-    
-    def get_results(self):
-        return self.screen_array[self.buffer_id]
+
+  
     
 class Julia(Fractal):
     def __init__(self, width, height,func, cx, cy):
@@ -267,4 +273,3 @@ class Julia(Fractal):
                     iter = max_iter
                 
         return iter
-

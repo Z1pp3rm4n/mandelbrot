@@ -4,7 +4,7 @@ import taichi as ti
 from fractal import Fractal
 from functions import mandelbrot_func, burning_ship, mandelbrot3
 
-RES = WIDTH, HEIGHT = 1600, 800
+RES = WIDTH, HEIGHT = 1920, 1080
 
 
 platform = ti.cpu
