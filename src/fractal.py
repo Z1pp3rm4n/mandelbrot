@@ -9,7 +9,7 @@ SIM_RANGE = 100
 MAX_ITER = 1000
 
 vec3 = ti.types.vector(3,float)
-a,b,c,d = vec3(0.5,0.5,0.5),vec3(0.5,0.5,0.5),vec3(1.0,1.0,1.0),vec3(0.0,0.33,0.67)
+a,b,c,d = vec3(0.5,0.5,0.5),vec3(0.5,0.5,0.5),vec3(1.0,1.0,1.0),vec3(0.3,0.20,0.20) 
 e = vec3(0.3,0.5,0.8)
 
 @ti.func
@@ -35,11 +35,12 @@ def mandelbrot_func(zx:ti.float64, zy:ti.float64, cx:ti.float64, cy:ti.float64):
 
 
 @ti.func
-def get_color(iter: ti.int32, max_iter: ti.int32):
+def get_color(t):
     # col = ti.cast((iter/max_iter * 255), ti.int32)
-    t = iter / max_iter
+    # t = iter / max_iter
     # return 0 if iter == max_iter else ti.cast((iter/max_iter * 255), ti.int32)
-    return e if iter == max_iter else a + b*tm.cos(6.28318*(c*t + d))
+    return a + b*tm.cos(6.28318*(c*t + d))
+
 
 
 @ti.data_oriented
@@ -62,6 +63,7 @@ class Fractal:
         self.screen_array = np.full((self.width, self.height, 3), [0, 0, 0], dtype=np.uint32)
         self.iters = ti.field(ti.int32, (2, self.width, self.height))
         self.pixels_per_iter = ti.field(ti.int32, self.max_iter + 1)
+        self.partial_sums = ti.field(ti.int32, self.max_iter + 1)
         self.hues = ti.field(ti.float32, self.max_iter + 1)
 
 
@@ -71,6 +73,7 @@ class Fractal:
         self.ylookup = ti.field(ti.int32, (self.height,))
 
         self.first_render()
+        self.fill_pixels_per_iter_bruteforce(self.buffer_id)
 
     @ti.func
     def find_iter(self, x: ti.float64, y:ti.float64):
@@ -102,17 +105,38 @@ class Fractal:
         # 
         # return iter
 
+    @ti.kernel 
+    def fill_pixels_per_iter_bruteforce(self, bid: int):
+        for xid, yid in ti.ndrange(self.width, self.height):
+            iter = self.iters[bid, xid, yid]
+            self.pixels_per_iter[iter] += 1
+
+    @ti.kernel
+    def fill_hues(self):
+        self.partial_sums[0] = self.pixels_per_iter[0]
+
+        ti.loop_config(serialize=True)
+        for i in range(1, self.max_iter):
+            self.partial_sums[i] = self.partial_sums[i-1] + self.pixels_per_iter[i]
+
+        total = self.partial_sums[self.max_iter - 1]
+        for i in range(0, self.max_iter):
+            self.hues[i] = self.partial_sums[i] / total
+
+
     @ti.kernel
     def fill_colors(self, bid:int, screen_array: ti.types.ndarray()): #type: ignore
         for xid, yid in ti.ndrange(self.width, self.height):
-            col = int(self.iters[bid, xid, yid] / self.max_iter * 255)
-            screen_array[xid, yid, 0] = col
-            screen_array[xid, yid, 1] = col
-            screen_array[xid, yid, 2] = col 
+            iter = self.iters[bid,xid,yid]
+            col = vec3(0.0) if iter == self.max_iter else get_color(self.hues[iter])
+            screen_array[xid, yid, 0] = int(col.x*255)
+            screen_array[xid, yid, 1] = int(col.y*255)
+            screen_array[xid, yid, 2] = int(col.z*255)
             
   
     def update(self):
         self.fast_render()
+        self.fill_hues()
         self.fill_colors(self.buffer_id, self.screen_array)
     
     def get_results(self):
@@ -159,7 +183,12 @@ class Fractal:
             else:
                 x = self.xcoords[bid, xid]
                 y = self.ycoords[bid, yid]
-                self.iters[bid,xid,yid] = self.find_iter(x,y)
+                iter = self.find_iter(x,y)
+                old_iter = self.iters[bid^1, xid, yid]
+                self.iters[bid,xid,yid] = iter
+                # TODO
+                self.pixels_per_iter[iter] += 1
+                self.pixels_per_iter[old_iter] -= 1
                 
 
     def fill_xlookup(self):
