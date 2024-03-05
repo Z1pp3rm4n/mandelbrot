@@ -1,0 +1,127 @@
+\documentclass{article} 
+\usepackage[style=numeric,backend=biber]{biblatex}
+\addbibresource{refs.bib}
+
+\usepackage{listings}
+\usepackage{xcolor}
+
+\definecolor{codegreen}{rgb}{0,0.6,0}
+\definecolor{codegray}{rgb}{0.5,0.5,0.5}
+\definecolor{codepurple}{rgb}{0.58,0,0.82}
+\definecolor{backcolour}{rgb}{0.95,0.95,0.92}
+
+\lstdefinestyle{mystyle}{
+	backgroundcolor=\color{backcolour},   
+	commentstyle=\color{codegreen},
+	keywordstyle=\color{magenta},
+	numberstyle=\tiny\color{codegray},
+	stringstyle=\color{codepurple},
+	basicstyle=\ttfamily\footnotesize,
+	breakatwhitespace=false,         
+	breaklines=true,                 
+	captionpos=b,                    
+	keepspaces=true,                 
+	numbers=left,                    
+	numbersep=5pt,                  
+	showspaces=false,                
+	showstringspaces=false,
+	showtabs=false,                  
+	tabsize=2
+}
+
+\lstset{style=mystyle}
+
+\usepackage{graphicx}
+\usepackage{amsmath} % \usepackage is a command that allows you to add functionality to your LaTeX code
+
+\title{Simple Sample} % Sets article title
+\author{My Name} % Sets authors name
+\date{\today} % Sets date for date compiled
+
+% The preamble ends with the command \begin{document}
+	\begin{document} % All begin commands must be paired with an end command somewhere
+		\maketitle % creates title using information in preamble (title, author, date)
+		
+\section{Mandelbrot und Julia-Mengen}
+\subsection{Definitionen}
+Zentral zu der Mandelbrot-Menge ist die Funktion $f_c(z) = z^2 + c$, erweitert auf die Menge der komplexen Zahlen. Ändert man den Parameter $c$ und wendet man die Funktion iterativ auf den Startwert $z=0$ an. \\
+Analog zu der Mandelbrot-Menge wird auch eine holomorphe Funktion $f(z): C \rightarrow C$ mehrfach auf einen Startwert angewendet und dessen Folge beobachtet. Die zur Mandelbrot-Menge äquivalenten Julia Mengen benutzen auch die Funktion $f_c(z) = z^2 + c$. Diesmal legt man $c$ fest und ändert den Startwert $z$. Punkte, bei der kleine Änderungen zu chaotische Entwicklungen führen, gehören zur Menge
+
+
+\subsection{Ziele des Projekts}	
+Schon lässt sich beobachten, dass aus einem sehr einfachen Formel $f(z) = z^2 + c$ eine sehr schöne und komplexe Fraktal entsteht. Um diese Fraktalen zu untersuchen, ist eine Visualizer, bei dem man in Teile des Fraktals zoomen kann geeignet. Der Zoomer soll auch in Echtzeit funktionieren. Im Folgenden wird beschrieben, wie es implementiert wurde. \cite{quilez}.
+
+\section{Implementierung}
+\subsection{Allgemeine Verfahren}
+1. Pixels auf komplexe Zahlen abbilden
+2. Iterationenanzahl berechnen, Zahlen, die divergieren werden schwarz gefärbt.
+3. Farbe aus Palette berechnen
+4. Xaos-Algorithmus
+
+\subsection{Iterationenanzahl berechnen}
+Da keine komplexen Zahlen $z$ mit Betrag $|z| \geq 2$ in der Menge liegen, müssen wir nur $f(z)$ anwenden, bis $z$ diese Grenze überschreitet. Und weil wir keine unendliche Rechnenkapazität besitzen, muss die Iterationenanzahl nun begrenzt werden: Wenn $|z|$ nach \lstinline|max_iter| Iterationen noch nicht explodiert, sagen wir, dass $c$ in der Mandelbrot-Menge ist. TODO cite wiki
+\begin{lstlisting}[language=Python]
+def find_iter(cx, cy):
+	zx, zy = 0.0, 0.0
+	iter = 0
+	while iter < max_iter and zx**2 + zy**2 < 4:
+		iter += 1
+		zx_old = zx
+		zx = zx**2 - zy**2 + cx
+		zy = 2*zx_old*zy + cy
+return iter
+\end{lstlisting}
+\subsection{Taichi: Eine schnelle Einführung}
+Taichi ist nicht nur ein Modul, sondern ein Programmiersprache, die zusammen mit Python arbeiten kann. Die Syntax von Taichi ist ähnlich wie die von Python, nun mit einigen kleinen Unterschieden.
+Mit \textbf{taichi} kann man schnell und einfach Code parallelisieren. Außerdem kann auch unterschiedliche Backends benutzt werden, z.B \lstinline|ti.cpu| für CPU oder \lstinline|ti.gpu| für CUDA/Vulkan basierte Grafikkarten. 
+\begin{itemize}
+	\item Taichi Kernel (bezeichnet mit \lstinline|@ti.kernel|) sind Funktionen, die rechenintensive Aufgaben erledigen können, indem innere Schleifen automatisch parallelisiert werden. Eine Python-Funktion kann Taichi Kernel aufrufen aber nicht umgekehrt. Taichi Kernel können nur Taichi Funktionen aufrufen (\lstinline|@ti.func|). Ein typischer Workflow wäre
+	\begin{lstlisting}[language=python]
+		@ti.kernel
+		def taichi_kernel():
+		for i in range(1000000): # Parallelisiert
+			mach_etwas_schweres()
+
+		ti.init(arch=ti.gpu) # Benutzt das GPU 
+		... # Normaler Python-Code
+		taich_kernel() 
+	\end{lstlisting}
+
+	\item Analog zu \lstinline|numpy| Arrays arbeitet Taichi Code oft mit Fields.	
+	\begin{lstlisting}[language=python]
+		x = ti.Field(dtype=ti.float64, shape=(50,40))
+		# Ein 50x40 Feld mit 64-Bits-Gleitkommazahlen
+		x[0,30] = 4
+		x[0,14] = x[0,13] + x[1,3]
+	\end{lstlisting}
+	
+	\item Globale Variablen sind bei Taichi Kerneln konstant, also mutabele Variablen müssen explizit als Parameter übergeben werden. Außerdem ist der Typ von Variablen zu annotieren
+		\begin{lstlisting}[language=python]
+		x = 5
+		@ti.kernel
+		def print_wrong():
+			print(x)
+		x = 20
+		kernel_print(x) # Ausgabe: 5 (Fehler)
+		
+		@ti.kernel
+		def print_right(x: int):
+			print(x)
+	\end{lstlisting}
+	
+	\item Taichi Funktionen können keine Arrays/Fields erstellen
+		\begin{lstlisting}[language=python]
+		def python_func():
+			array = np.zeros(shape=(50,40), dtype=np.int32)
+			taichi_kernel(array)
+		
+		@ti.kernel
+		taichi_kernel(ti.types.ndarray()):
+			for i in array:
+				array[i] = mach_etwas_schweres(i)
+	\end{lstlisting}
+\end{itemize}
+Jetzt können wir mithilfe von Taichi parallelen Code schreiben. Für mehr Informationen: sehe Taichi-Docs \cite{taichi}.
+\printbibliography
+
+\end{document} % This is the end of the document

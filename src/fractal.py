@@ -9,25 +9,42 @@ SIM_RANGE = 100
 MAX_ITER = 1000
 GRADIENT_LENGTH=260
 
-vec3 = ti.types.vector(3,float)
-a,b,c,d = vec3(0.8,0.5,0.4),vec3(0.2,0.4,0.2),vec3(2.0,1.0,1.0),vec3(0.0,0.25,0.25) # pinkish scheme
-# a,b,c,d = vec3(0.5,0.5,0.5),vec3(0.5,0.5,0.5),vec3(1.0,1.0,1.0),vec3(0.3,0.20,0.20) # blueish scheme
-
-
-
-
+vec3 = ti.types.vector(3,float) #RGB vector type
 @ti.func
 def palette(t):
-    # col = ti.cast((iter/max_iter * 255), ti.int32)
-    # t = iter / max_iter
-    # return 0 if iter == max_iter else ti.cast((iter/max_iter * 255), ti.int32)
+    """ 
+    Generates a palette with parameter a,b,c,d
+    Credit to Inigo Quilez: https://iquilezles.org/articles/palettes/
+    Arg:
+        t: a float in range (0,1)
+    Returns:
+        Color of t in palette in form vector(R,G,B), where R,G,B are floats in  (0,1)
+    """
+    # a,b,c,d = vec3(0.8,0.5,0.4),vec3(0.2,0.4,0.2),vec3(2.0,1.0,1.0),vec3(0.0,0.25,0.25) # pinkish scheme
+    a,b,c,d = vec3(0.5,0.5,0.5),vec3(0.5,0.5,0.5),vec3(1.0,1.0,1.0),vec3(0.0,0.10,0.20) # blueish scheme
     return a + b*tm.cos(6.28318*(c*t + d))
+
+def find_first_duplicate(points):
+    seen = set()
+    for i in range(len(points)):
+        point = (points[i,0], points[i,1])
+        if point in seen:
+            return i
+        else:
+            seen.add(point)
+
+    return len(points)
 
 
 
 @ti.data_oriented
 class Fractal:
+    """
+    Represents a generic Mandelbrot fractal
+    
+    """
     def __init__(self, width, height, func, bailout=2.0, max_iter=MAX_ITER, exponent=2):
+        # Parameters for the mandelbrot function
         self.bailout = bailout
         self.max_iter = max_iter
         self.func = func
@@ -53,6 +70,34 @@ class Fractal:
     def create_julia(self, cx, cy):
         size = self.height // 2
         return Julia(size,size,self.func, cx, cy, self.bailout, self.max_iter, self.exponent)
+    
+    def get_orbit(self, xid, yid):
+        bid = self.buffer_id
+        cx, cy  = self.xcoords[bid,xid], self.ycoords[bid,yid]
+        points = np.zeros((self.max_iter, 2), np.int32)
+
+        self.get_orbit_kernel(cx,cy, self.scale, points)
+        dup_index = find_first_duplicate(points)
+
+        return points[:dup_index]
+    
+
+    @ti.kernel  
+    def get_orbit_kernel(self, cx:ti.float64, cy:ti.float64, scale:ti.float64, points: ti.types.ndarray()): # type:ignore
+        zx, zy = 0.0, 0.0
+        iter = 0
+        while (zx**2 + zy**2 < self.bailout**2 and iter < self.max_iter):
+            points[iter, 0], points[iter, 1] = self.to_point(zx, zy, scale)
+            zx, zy = self.func(zx,zy,cx,cy)
+            iter += 1
+
+
+    @ti.func
+    def to_point(self, x, y, scale):
+        step = 4.0 / self.height * scale
+        xid = int((x - self.x_center) / step + self.width // 2)
+        yid = int((y - self.y_center) / step + self.height// 2)
+        return xid,yid
 
     @ti.func
     def get_color(self, x,y):
@@ -60,6 +105,11 @@ class Fractal:
 
     @ti.func
     def get_color_4(self, zx:ti.float64, zy:ti.float64, cx: ti.float64, cy:ti.float64):
+        # iter = 0
+        # while(zx**2 + zy**2 <= self.bailout**2 and iter < self.max_iter):
+        #     zx, zy = self.func(zx,zy,cx,cy)
+        #     iter +=1
+        
         iter = 0
         period = 8
         ckx, cky = zx, zy 
@@ -71,27 +121,21 @@ class Fractal:
             while(not bail and iter < period):
                 zx, zy = self.func(zx,zy, cx, cy)
                 iter += 1
-                if (zx**2 + zy**2 > self.bailout ** 2): 
+                if (zx**2 + zy**2 >= self.bailout ** 2): 
                     bail = True
                 if (zx == ckx and zy == cky):
                     bail = True 
                     iter = self.max_iter
-                
+        ti.loop_config(serialize=True)
         for _ in range(2):
             zx, zy = self.func(zx,zy,cx,cy)
         logz_n = tm.log(zx**2 + zy**2)
         nu = tm.log(logz_n / ti.log(self.exponent))/tm.log(self.bailout)
         mu = iter + 3 - nu
-        return vec3(0.0) if iter == self.max_iter else palette((mu % GRADIENT_LENGTH) / GRADIENT_LENGTH) * 255
-
-        # iter = 0
-        # zx, zy = ti.float64(0.0), ti.float64(0.0)
-        # while(zx**2 + zy**2 <= bailout**2 and iter < max_iter):
-        #     zx, zy = self.func(zx,zy,x,y)
-        #     iter +=1
-        # 
-        # return iter
-
+        
+        return vec3(0.0) if iter == self.max_iter else palette(mu / self.max_iter + 0.5) * 255
+        
+        #return vec3(iter/self.max_iter)*255
 
   
     def update(self):
@@ -152,10 +196,12 @@ class Fractal:
                 screen_array[bid,xid,yid,2] = int(col.z)                
 
                
-
-
-
-    def fill_xlookup(self):
+    def fill_xlookup(self): 
+        """
+        Fills the xlookup table with values such that: 
+        For xlookup[xid] = xid_best means column xid can be approximated with column xid_best from last frame
+        Worst REDRAW_PERCENT columns will have xlookup[xid] = -1, forced to be redrawn
+        """
         best = np.zeros(shape=(self.width,), dtype=np.int32)
         dist = np.zeros(shape=self.width, dtype=np.float64)
         self.compare_x_coords(self.buffer_id, best, dist)
@@ -165,6 +211,14 @@ class Fractal:
 
     @ti.kernel
     def compare_x_coords(self, bid: int, best:ti.types.ndarray(), dist:ti.types.ndarray()): # type: ignore
+        """
+        Finds columns from last frame which best approximate columns from current frame
+
+        Args:
+            bid: buffer_id of current frame
+            best: Saves results: column best[xid] from last frame best approximates column xid from current frame
+            dist: Saves results: dist[xid] ist the distance between column xid and column xid_best
+        """
         for i in range(self.width):
             diff_best = ti.float64(1e10)
             id_best = -1
@@ -233,10 +287,6 @@ class Fractal:
     
 
 
-
-
-
-    
 class Julia(Fractal):
     def __init__(self, width, height, func, cx, cy, bailout=2.0, max_iter=MAX_ITER, exponent=2):
         super().__init__(width, height, func, bailout, max_iter, exponent)
