@@ -98,7 +98,7 @@ Um diese Mengen bzw. Fraktale zu untersuchen, ist ein Visualisierungsprogramm, b
 
 \section{Implementierung}
 \subsection{Allgemeine Verfahren}
-Im Grunde genommen brauchen wir 3 Schritte, um die Mandelbrot zu rendern:
+Im Grunde genommen brauchen wir 3 Schritte, um das Mandelbrot zu rendern:
 \begin{itemize}
 \item Pixels auf komplexe Zahlen abbilden (trivial)
 \item Iterationenanzahl \lstinline|iter| berechnen
@@ -177,7 +177,7 @@ Taichi ist nicht nur ein Modul, sondern eine parallele Programmiersprache, die z
 	\begin{lstlisting}[language=python]
 		x = ti.Field(dtype=ti.float64, shape=(50,40))
 		# Ein 50x40 Feld mit 64-Bits-Gleitkommazahlen
-		x[0,30] = 4 # 0-te Reihe, 30-te Säule
+		x[0,30] = 4 # 0-te Reihe, 30-te Saeule
 		x[0,14] = x[0,13] + x[1,3]
 	\end{lstlisting}
 	
@@ -207,13 +207,13 @@ Taichi ist nicht nur ein Modul, sondern eine parallele Programmiersprache, die z
 				array[i] = mach_etwas_schweres(i)
 	\end{lstlisting}
 \end{itemize}
-Für mehr Informationen: sehe Taichi-Docs \cite{taichi}. Jetzt können wir mithilfe von Taichi parallelen Code schreiben
+Für mehr Informationen: sehe Taichi-Docs \cite{taichi}. Nun jetzt sind wir bereit, mithilfe von Taichi parallelen Code zu schreiben
 
 \begin{lstlisting}[language=python]
 ti.init(arch=ti.gpu) # Benutz GPU als Backend
 
 def render_taichi(width, height):
-	# Alle Fields/ Arrays muessen erstellt und dann de
+	# Alle Fields/ Arrays muessen erstellt und dann dem Kernel uebergeben werden
 	image_field = ti.Vector.field(n=3, shape=(width,height), dtype=ti.uint32)
 	render_kernel(image_field, width, height)
 	return image_field.to_numpy()
@@ -240,11 +240,12 @@ plt.show()
 	\caption{Ein Bild der Mandelbrot Menge mit Auflösung 1600x800, Laufzeit: 0.3 Sekunden mit Taichi}
 	\label{fig:mandelbrot-taichi}
 \end{figure}
-Die fundamentale Schleife ist fast nicht geändert, aber wir können ein Bild, das 16 Mal detaillierter ist, in ein Fünftel der Zeit berechnen. 
+Die fundamentale Schleife ist fast nicht geändert, aber wir können ein Bild, das 16 Mal detaillierter ist, in ein Fünftel der Zeit berechnen. (Abb. \ref{fig:mandelbrot-taichi})
 
 \subsection{Farbe}
-Natürlich sind Schwarz-Weiß Bilder ausreichend, aber die sind noch zu langweilig. Außerdem, wenn wir den \lstinline|max_iter| zu hoch setzen, z.B 2000, bekommen wir ein nahezu komplett schwarzes Bild. Die meisten Punkten divergieren schon mit einer niedrigen Iterationenanzahl, also die Helligkeit \lstinline|iter/max_iter| geht gegen 0.
-\begin{figure}
+Natürlich sind Schwarz-Weiß Bilder ausreichend, aber die sind noch zu langweilig. Außerdem, wenn wir den \lstinline|max_iter| zu hoch setzen, z.B 2000, bekommen wir ein nahezu komplett schwarzes Bild. Die meisten Punkten divergieren schon mit einer niedrigen Iterationenanzahl, also deren Helligkeit \lstinline|iter/max_iter| geht gegen 0. (Abb. \ref{fig:highmaxiter})
+
+\begin{figure}[!htb]
 \centering
 \includegraphics[width=\linewidth]{img/high_max_iter}
 \caption{Mandelbrot mit \lstinline|max_iter| = 2000}
@@ -265,7 +266,7 @@ a, b, c, d und Ergebnis color(t) sind RGB-Vektoren mit Werten im Bereich (0,1). 
 
 Setzen wir \lstinline|t=iter/max_iter| in den Formel, bekommen wir ein gefärbtes Bild der Mandelbrot in Abbildung \ref{fig:mandelbrot_palette}
 
-\begin{figure}
+\begin{figure}[!h]
 \centering
 \includegraphics[width=\linewidth]{img/automatische_palette}
 \caption{Mandelbrot mit Palette $a=(0.5,0.5,0.5), b=(0.5,0.5,0.5),c=(1.0,1.0,1.0),d=(0.5,0.60,0.70)$}
@@ -273,17 +274,22 @@ Setzen wir \lstinline|t=iter/max_iter| in den Formel, bekommen wir ein gefärbte
 \end{figure}
 
 \subsubsection{Kontinuierlich Farbverläufe}
-Zoomen wir ein bisschen in die obige Abbildung, fällt etwas auf: separate "Farbstreifen" entstehen im Bild. Grund dafür ist, dass die Farbe von Punkten nur von Iterationenanzahl abhängt. Es gibt gleichfarbige Streifen mit \lstinline|iter = 1|, dann \lstinline|iter = 2|, \lstinline|iter = 3|,... Wenn wir \lstinline|iter| z.B verwandeln können, sodass \lstinline|iter = 1.0, 1.1, 1.2,...| würde der TODO
+Zoomen wir ein bisschen in die obige Abbildung, fällt etwas auf: separate ``Farbstreifen`` entstehen im Bild. Grund dafür ist, dass Punkte nur ganzzahlige Farbstufen (\lstinline|iter|) haben. Deswegen gibt es eine abrupte Transition z.B: zwischen Regionen mit \lstinline|iter = 1| und Regionen mit \lstinline|iter = 2|. Wenn dazwischen auch Punkte mit \lstinline|iter = 1.1, 1.2, 1.3,...| liegen, wi
 
 \begin{figure}
 \centering
 \includegraphics[width=0.7\linewidth]{img/farbstreifen}
-\caption{}
+\caption{Die verschiedenen Farbstreifen im Mandelbrot}
 \label{fig:farbstreifen}
 \end{figure}
 Wir normalisieren mit der folgenden Formel:
 $$mu = n + 1 - \frac{\log(\log(|z_n|) / \log(exponent))}{\log(bailout)} $$
-,wobei n die Iterationenanzahl, $z_n$ ist 0 nach n Iterationen, $exponent$ ist der Exponent der Funktion $z= z^n + c$, und $bailout$ unsere Grenze ist.
+\begin{itemize}
+\item 
+\end{itemize}
+,wobei $mu$ der normalisierte Wert, $n$ die Iterationenanzahl, $z_n$ ist 0 nach $n$ Iterationen, $exponent$ der Exponent der Mandelbrot-Funktion $z = z^n + c$, und $bailout$ unsere Grenze ist. 
+
+Geben wir anstatt $n$ $mu$ der 
 
 \begin{figure}
 \centering
