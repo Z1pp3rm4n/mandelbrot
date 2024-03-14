@@ -55,7 +55,7 @@ Das Bild der Mandelbrot-Menge soll jeder bekannt sein. Es taucht oft in der Math
 Was weniger bekannt ist, ist die Bedeutung des obigen Diagramms: 
 \begin{itemize}
 \item Jeder Pixel $(x,y)$ wird als eine komplexe Zahl $c = x + i.y$ interpretiert.
-\item Die Funktion $f(z) = z^2 +c$ wird auf den Startwert $z=0$ angewendet, sodass eine Folge $z_0, z_1, ..., z_n = 0, f(0), f(f(0))$ entsteht.
+\item Die Funktion $f(z) = z^2 +c$ wird auf den Startwert $z=0$ angewendet, sodass eine Folge $z_0, z_1, ..., z_n = 0, f(0), f(f(0)),...$ entsteht.
 \item Man betrachtet dann die Beträge $|z_n|$ von Zahlen in der Folge. Die können bis ins Unendliche wachsen, z.B mit $c=2$, die Folge ist: $0,2,6,38,1446,2090918, ...$ Im Gegenteil können sie für bestimmte Werte von $c$ immer unter einer Grenze bleiben. Man sagt dann, dass $c$ in der Mandelbrot-Menge liegt, und die entsprechenden Pixel werden schwarz gefärbt. \cite{wiki-mandelbrot}
 \end{itemize}
 Obwohl die Funktion $f$ an sich nicht so kompliziert ist, gibt es keine allgemeinen Formeln, die bestimmen können, ob eine Zahl in der Mandelbrot ist. Sehr kleine Änderungen bei dem Wert von $c$ führen oft zu chaotischen Änderungen bei $z_n$, die nicht vorhersagen lassen. Das daraus entstehende Fraktal enthält deswegen sehr komplizierte Muster, und manchmal auch sich selbst (sehe: Abb. \ref{fig:mandelbrotmini}, \ref{fig:spiralen}, \ref{fig:blatt})
@@ -70,34 +70,34 @@ Obwohl die Funktion $f$ an sich nicht so kompliziert ist, gibt es keine allgemei
 \begin{figure}
 \centering
 \includegraphics[width=0.7\linewidth]{img/spirale}
-\caption{Unendliche Spiralen}
+\caption{Unendliche Spiralen im Mandelbrot}
 \label{fig:spiralen}
 \end{figure}
 
 \begin{figure}
 \centering
 \includegraphics[width=0.7\linewidth]{img/blatt}
-\caption{Ein Blatt mit Zweigen}
+\caption{Ein Blatt mit Zweigen im Mandelbrot}
 \label{fig:blatt}
 \end{figure}
 
-Analog zu der Mandelbrot-Menge wird auch bei Julia-Mengen $f_c$ iterativ auf $z$ angewendet. Diesmal legt man $c$ fest und ändert den Startwert $z$. Punkte, bei der kleine Änderungen zu chaotische Entwicklungen führen, gehören zur Menge. Grafisch liegen dann Punkte der Julia-Menge an den Grenzen (z.B in Abb. \ref{fig:julia-set}: zwischen die schwarzen und blauen Bereichen) 
+Analog zu der Mandelbrot-Menge wird auch bei Julia-Mengen $f_c$ iterativ auf $z$ angewendet. Diesmal legt man $c$ fest und ändert den Startwert $z$. Punkte, bei der kleine Änderungen zu chaotischen Entwicklungen führen, gehören zur Menge. Grafisch liegen dann Punkte der Julia-Menge an den Grenzen (z.B. in Abb. \ref{fig:julia-set}: zwischen die schwarzen und blauen Bereichen) 
 
-Allgemein lassen Julia-Mengen durch eine Funktion $f(z): C \rightarrow C$ beschreiben, wobei die Funktion nicht unbedingt der Form $f(z) = z^2 +c$ haben muss.
+Allgemein lassen Julia-Mengen sich durch eine Funktion $f(z): C \rightarrow C$ beschreiben, wobei die Funktion nicht unbedingt der Form $f(z) = z^2 +c$ haben muss.
 
 \begin{figure}[!htb]
 \centering
 \includegraphics[width=0.7\linewidth]{img/julia-set}
-\caption{Die Julia Menge mit $f(z) = z^2 +c$, wobei $c \approx (-0.7022, 0.0089)$}
+\caption{Die Julia Menge mit $f(z) = z^2 +c$, wobei $c \approx (-0.7022, 0.0089)$. Die Punkte der Menge sind an der Grenze zwischen Schwarz und Blau.}
 \label{fig:julia-set}
 \end{figure}
 
 
 \subsection{Ziele des Projekts}	
-Um diese Mengen bzw. Fraktale zu untersuchen, ist ein Visualisierungsprogramm, bei dem man heran- und herauszoomen kann, meiner Ansicht nach am bestens geeignet. Der Zoomer soll auch in Echtzeit funktionieren, d.h: es muss mit ~30 FPS laufen können. Obwohl Python nicht gerade als eine Performanz-Programmiersprache bekannt ist, können wir uns mithilfe einiger Optimierungen und des Xaos-Algorithmus diesen Ziel nähern. In nächster Sektion werden diese Algorithmen sowie deren Implementierungen im Programm genau erläutert.
+Um diese Mengen bzw. Fraktale zu untersuchen, ist ein Visualisierungsprogramm, bei dem man heran- und herauszoomen kann, meiner Ansicht nach am bestens geeignet. Der Zoomer soll auch in Echtzeit funktionieren, d.h: es muss mit $\approx 30$ FPS laufen können. Obwohl Python nicht gerade als eine Performanz-Programmiersprache bekannt ist, können wir uns mithilfe einiger Optimierungen und des Xaos-Algorithmus diesem Ziel nähern. In nächster Sektion werden diese Algorithmen sowie deren Implementierungen im Programm genau erläutert.
 
 \section{Implementierung}
-\subsection{Allgemeine Verfahren}
+\subsection{Allgemeines Verfahren}
 Im Grunde genommen brauchen wir 3 Schritte, um das Mandelbrot zu rendern:
 \begin{itemize}
 \item Pixels auf komplexe Zahlen abbilden (trivial)
@@ -107,7 +107,7 @@ Im Grunde genommen brauchen wir 3 Schritte, um das Mandelbrot zu rendern:
 Der hier gegebene Code ist eine vereinfachte Version und kann vom tatsächlichen Programm abweichen. Es gibt auch einen Jupyter-Notebook, in dem Sie den Code selber ausführen können.
 
 \subsection{Iterationenanzahl berechnen}
-Es ist bekannt, dass keine komplexen Zahlen $z = x + yi$ mit Betrag $|z| = x^2 + y^2 \geq 2$ in der Mandelbrot Menge liegen. D.h, wir müssen nur $z = z^2 + c$  anwenden, bis $|z|$ unsere Schranke überschreitet. Wenn nach \lstinline|max_iter| Iterationen der Betrag $|z|$ noch nicht explodiert, sagen wir, dass $c$ in der Mandelbrot-Menge ist. 
+Es ist bekannt, dass keine komplexen Zahlen $z = x + yi$ mit Betrag $|z| = x^2 + y^2 \geq 2$ in der Mandelbrot-Menge liegen. D.h, wir müssen nur $z = z^2 + c$  anwenden, bis $|z|$ unsere Schranke überschreitet. Wenn nach \lstinline|max_iter| Iterationen der Betrag $|z|$ noch nicht explodiert, sagen wir, dass $c$ in der Mandelbrot-Menge ist. 
 
 Je größer \lstinline|max_iter| ist, desto detaillierter wird das Fraktal, aber dafür müssen auch mehr gerechnet werden. 
 \begin{lstlisting}[language=Python, caption={Eine Schleife zur Berechnung der Iterationenanzahl}, captionpos=b] 
@@ -122,13 +122,13 @@ def find_iter(cx, cy):
 return iter
 \end{lstlisting}
 \begin{itemize}
-\item Gemäß dem Formel ist der Realteil $zx = zx^2 - zy^2 + cx$, $zy = 2*zx*zy + cy$, wobei $z$ startet mit Wert $0$ und $c$ unserer Parameter ist. 
+\item Gemäß dem Formel ist der Realteil $zx = zx^2 - zy^2 + cx$, $zy = 2*zx*zy + cy$, wobei $z$ mit Wert $0$ startet und $c$ unserer Parameter ist. 
 \item Nach jeder Schleife wir geprüft, oft $\sqrt{zx^2 + zy^2} < 2$ bzw. $zx^2 + zy^2 < 4$
 \end{itemize}
 
-Färben wir nun die Punkte $c$ in Graustufen, je nach wie schnell $|z|$ explodiert (\lstinline|iter|), haben wir ein Bild vom Fraktal 
+Färben wir nun die Punkte $c$ in Graustufen, je nach wie schnell $|z|$ über den Fluchtradius gehen (\lstinline|iter|), haben wir ein Bild vom Fraktal.
 
-\begin{lstlisting}[language=python]
+\begin{lstlisting}[language=python, caption={Ergebnis in Abb. \ref{fig:mandelbrot-numpy} }, captionpos=b]
 def render_numpy(width, height, max_iter):
     image = np.full((width, height, 3), [0,0,0], dtype=np.uint32)
     xcoords = np.linspace(-2, 2, width, dtype=np.float64)
@@ -161,7 +161,7 @@ Natürlich können wir die obige Funktion vektorisieren, sodass es auf den ganze
 Taichi ist nicht nur ein Modul, sondern eine parallele Programmiersprache, die zusammen mit Python arbeiten kann. Unterschiedliche Backends können benutzt werden, z.B \lstinline|ti.cpu| für die CPU oder \lstinline|ti.gpu| für CUDA/Vulkan basierte Grafikkarten. Die Syntax von Taichi ist ähnlich wie die von Python, nun mit einigen kleinen Unterschieden und Konzepten:·
 
 \begin{itemize}
-	\item Taichi Kernel (bezeichnet mit \lstinline|@ti.kernel|) sind Funktionen, die rechenintensive Aufgaben erledigen können, indem innere Schleifen automatisch parallelisiert werden. Eine Python-Funktion kann Taichi Kernel aufrufen aber nicht umgekehrt. Taichi Kernel können nur Taichi Funktionen aufrufen (\lstinline|@ti.func|). Ein typischer Workflow wäre
+	\item Taichi Kernel (bezeichnet mit \lstinline|@ti.kernel|) sind Funktionen, die rechenintensive Aufgaben erledigen können, indem innere Schleifen automatisch parallelisiert werden. Eine Python-Funktion kann Taichi Kernel aufrufen aber nicht umgekehrt. Taichi Kernel können nur Taichi Funktionen aufrufen (\lstinline|@ti.func|). Ein typischer Workflow wäre:
 	\begin{lstlisting}[language=python]
 		@ti.kernel
 		def taichi_kernel():
@@ -177,7 +177,7 @@ Taichi ist nicht nur ein Modul, sondern eine parallele Programmiersprache, die z
 	\begin{lstlisting}[language=python]
 		x = ti.Field(dtype=ti.float64, shape=(50,40))
 		# Ein 50x40 Feld mit 64-Bits-Gleitkommazahlen
-		x[0,30] = 4 # 0-te Reihe, 30-te Saeule
+		x[0,30] = 4 # 0-te Reihe, 30-te Spale
 		x[0,14] = x[0,13] + x[1,3]
 	\end{lstlisting}
 	
@@ -211,27 +211,26 @@ Für mehr Informationen: sehe Taichi-Docs \cite{taichi}. Nun jetzt sind wir bere
 
 \begin{lstlisting}[language=python]
 ti.init(arch=ti.gpu) # Benutz GPU als Backend
-
-def render_taichi(width, height):
-	# Alle Fields/ Arrays muessen erstellt und dann dem Kernel uebergeben werden
+def render_taichi(width, height, max_iter):
 	image_field = ti.Vector.field(n=3, shape=(width,height), dtype=ti.uint32)
-	render_kernel(image_field, width, height)
+	xcoords = np.linspace(-2,2,width)
+	ycoords = np.linspace(-1,1,height)
+	render_kernel(image_field, xcoords, ycoords, max_iter)
 	return image_field.to_numpy()
 
 @ti.kernel
-def render_kernel(image_field:ti.template(), width:int, height:int): # type:ignore
-	step = 2/height
-	for x,y in image_field: paralellisiert
-		cx = -2 + x*step
-		cy = -1 + y*step
-		iter = find_iter_taichi(cx,cy)
+def render_kernel(image_field:ti.template(), xcoords: ti.types.ndarray(), ycoords: ti.types.ndarray(), max_iter: int): 
+	for x,y in image_field: # paralellisiert
+		cx = xcoords[x]
+		cy = ycoords[y]
+		iter = find_iter_taichi(cx,cy, max_iter)
 		col = 0 if iter==max_iter else int(iter / max_iter *255)
-	image_field[x,y] = [col,col,col]
+		image_field[x,y] = [col,col,col]
 
 # Der erster Lauf des Codes kann langsam sein
 # Sequentielle Laeufe werden schneller
-image = np.swapaxes(render_taichi(1600, 800), 0, 1)
-plt.imshow(image)
+image = render_taichi(1600, 800, max_iter=100)
+plt.imshow(np.swapaxes(image, 0, 1))
 plt.show()
 \end{lstlisting}
 \begin{figure}[!htb]
@@ -274,7 +273,7 @@ Setzen wir \lstinline|t=iter/max_iter| in den Formel, bekommen wir ein gefärbte
 \end{figure}
 
 \subsubsection{Kontinuierlich Farbverläufe}
-Zoomen wir ein bisschen in die obige Abbildung, fällt etwas auf: separate ``Farbstreifen`` entstehen im Bild. Grund dafür ist, dass Punkte nur ganzzahlige Farbstufen (\lstinline|iter|) haben. Deswegen gibt es eine abrupte Transition z.B: zwischen Regionen mit \lstinline|iter = 1| und Regionen mit \lstinline|iter = 2|. Wenn dazwischen auch Punkte mit \lstinline|iter = 1.1, 1.2, 1.3,...| liegen, wi
+Zoomen wir ein bisschen in die obige Abbildung, fällt etwas auf: separate ``Farbstreifen`` entstehen im Bild (Abb. \ref{fig:farbstreifen}). Grund dafür ist, dass Punkte nur ganzzahlige Farbstufen (\lstinline|iter|) haben. Deswegen gibt es eine abrupte Transition z.B: zwischen Regionen mit \lstinline|iter = 1| und Regionen mit \lstinline|iter = 2|. Dieses Problem lässt sich lösen, wenn dazwischen mit Punkten mit \lstinline|iter = 1.1, 1.2, 1.3,...| gefüllt wird. Dies schafft man durch \textbf{Normalisierung} der Iterationenzanzahl mit der unteren Formel:
 
 \begin{figure}
 \centering
@@ -282,33 +281,131 @@ Zoomen wir ein bisschen in die obige Abbildung, fällt etwas auf: separate ``Far
 \caption{Die verschiedenen Farbstreifen im Mandelbrot}
 \label{fig:farbstreifen}
 \end{figure}
-Wir normalisieren mit der folgenden Formel:
 $$mu = n + 1 - \frac{\log(\log(|z_n|) / \log(exponent))}{\log(bailout)} $$
-\begin{itemize}
-\item 
-\end{itemize}
-,wobei $mu$ der normalisierte Wert, $n$ die Iterationenanzahl, $z_n$ ist 0 nach $n$ Iterationen, $exponent$ der Exponent der Mandelbrot-Funktion $z = z^n + c$, und $bailout$ unsere Grenze ist. 
 
-Geben wir anstatt $n$ $mu$ der 
+, wobei $mu$ der normalisierte Wert, $n$ die Iterationenanzahl, $z_n$ ist 0 nach $n$ Iterationen, $exponent$ der Exponent der Mandelbrot-Funktion $z = z^n + c$, und $bailout$ unserer Fluchtradius ist. \cite{linas}
+
+Geben wir anstatt $n$ den Wert $mu$ der Palettenfunktion weiter, bekommen wir ein geglättetes Bild des Mandelbrots (Abb. \ref{fig:mandelbrot_smooth})
 
 \begin{figure}
 \centering
 \includegraphics[width=\linewidth]{img/mandelbrot_smooth}
-\caption{}
+\caption{Ein Bild des Mandelbrots ohne Farbstreifen}
 \label{fig:mandelbrot_smooth}
 \end{figure}
 
 
-\subsubsection{title}
-
 \subsection{Xaos-Algorithmus}
-%Die grundlegende Idee des Algorithmus liegt darin, dass beim Zoomen der demnächst zurenderne Frame 
-Erstaunlich: CPU ist schneller
+Benutzen wir die obigen Funktionen, können wir einen simplen Mandelbrot-Zoomer bilden mit folgender Schleife:
+\begin{itemize}
+\item Skalierungsfaktor \lstinline|scale| vergrößern (um herauszuzoomen) oder verkleinern (um heranzuzoomen)
+\item \lstinline|xcoords| (die Realteile / Spalten) und \lstinline|ycoords| (die Imaginärteile / Reihen) aus \lstinline|scale| berechnen
+\item Pixel \lstinline|(x,y)| repräsentiert dann die Nummer $xcoords|x| + i \cdot ycoords|y| \rightarrow$  Iterationenanzahl $\rightarrow$ Farbe
+\item Wiederholen
+\end{itemize}
+Wir merken aber, dass beim Zoomen der Bildschirm nicht so stark sich ändert. Viele Punkte bzw. Pixel vom letzten Frame tauchen im neuen Frame wieder auf. Betrachtet man die Spalten z.B. beim 2x Zoomen:
+ \\ 
+ 
+\begin{tabular}{c c c c c c c c}
+$O_1$ &  &$O_2$  &  & $O_3$  &  & $O_4$ &  \\
+\hline
+$X_1$ & $X_2$ & $X_3$ & $X_4$ & $X_5$  & $X_6$ & $X_7$  & $X_8$  \\
+\end{tabular}
+ \\
+ \\
+, wobei $O_1... O_4$ alte Spalten und $X_1 ... X_8$ neue Spalten sind. Schon lässt sich sehen, dass wir die Spalten $X_1, X_3, X_5, X_7$ nicht erneut berechnen müssen. Stattdessen können dafür die Pixel von den entsprechenden Spalten $O_1 , O_2, O_3, O_4$ ''wiederverwendet'' werden. Das ist auch die grundlegende Idee des Xaos-Algorithmus: wir versuchen, beim Rendern eines neuen Frames neue Spalten/Reihen durch alte Spalte/Reihen zu approximieren. Nur Punkte mit keinen guten Approximierungen sind erneut zu berechnen \cite{xaos}.
 
+Die Implementierung im Programm folgt der von MandelbrotSSE auf GitHub \cite{sse}:
+\begin{enumerate}
+\item Sucht für jede neue Zeile/Spalte eine alte Zeile/Spalte, die sie am bestens approximiert:
+	\begin{lstlisting}[language=python]
+	# WIDTH: Anzahl der Spalten
+	
+	for i in range(WIDTH):
+		diff_best = infinity 
+		id_best = -1 
+		# Sucht nur bei seinen Nachbarn
+		for j in range(i - 40, i + 40):
+			diff = abs(xcoords[i] - old_xcoords[j])
+			if diff < diff_best:
+				id_best = j
+				diff_best = diff
+					
+		pairs[i].id_orig = i
+		pairs[i].id_best = id_best
+		pairs[i].dist = diff_best
+	\end{lstlisting}
+	
+	Mach das gleiche für Zeilen.
+	
+\item Füllt die Lookup-Tabellen aus:
+	\begin{lstlisting}[language=python]
+	# Sortiert die Paare danach, wie gut die Approximierung ist
+	# Die schlechtesten Appr. sind am Anfang.
+	pairs.sort_on('dist').reverse()
+	
+	for i in range(WIDTH):
+		id_orig = pairs[i].id_orig
+		id_best = pairs[i].id_best
+		
+		if i < REDRAW_PERCENT / 100 * WIDTH:
+			# Die schlechtesten Paare bzw. Spalten sind erneut zu berechnen
+			xlookup[id_orig] = -1
+		else: 
+			# Sonst: approximiere neue Spalte id_orig mit alter Spalte id_best
+			xlookup[id_orig] = id_best
+			xcoords[id_orig] = old_xcoords[id_best]
+	\end{lstlisting}
+	
+	Mach das gleiche für Spalten
+	
+\item Rendert den neuen Frame mithilfe der Lookup-Tabellen und des alten Frames:
+	\begin{lstlisting}[language=python]
+	for x in range(WIDTH):
+		for y in range(HEIGHT):
+			x_best = xlookup[x]
+			y_best = ylookup[y]
+			if x_best != -1 and y_best != -1:
+				# Eine Appr. fuer die Spalte und Reihe ist gefunden
+				# Benutzt den entsprechenden Pixel vom alten Frame
+				frame[x,y] = old_frame[x_best, y_best]
+			else:
+				real = xcoords[x]
+				imag = ycoords[y]
+				frame[x,y] = calculate_mandelbrot(real, imag)
+	\end{lstlisting}
+\end{enumerate}
+
+Durch Anwendung des Xaos-Algorithmus wurde das Programm mindestens um 2-3 Mal beschleunigt. Was aber überraschend ist, dass obwohl er bei der CPU sehr gut funktioniert, scheiter der Algorithmus komplett bei der GPU. Es liegt wohl daran, dass die GPU sehr wenig RAM hat, um schnell auf den Array \lstinline|old_frame| zuzugreifen. 
 \subsection{Andere Optimierungen}
 \subsubsection{Orbit-Erkennung}
+Wenn beim Iterieren $z$ einen vorherigen Wert wieder trifft, heißt es, dass $z$ in einer Schleife ist und daher immer begrenzt bleibt. Z.B: 
+ 
+$z_0 \rightarrow z_1 \rightarrow z_2 \rightarrow z_1 \rightarrow z_2 \rightarrow z_1 \rightarrow z_2 \rightarrow ...$
+ 
+ 
+Wenn wir dies erkennen können, können wir die Iterationsschleife abbrechen und die Rechenarbeit sparen . Bei meisten Punkten im Mandelbrot geschieht dies auch sehr früh (Benutzen Sie den Orbit-Modus des Programms, um dies zu sehen). Im Folgenden ist eine Implementierung davon, mit Credits an LocklessInc \cite{lockless}:
+\begin{lstlisting}[language=python]
+def find_iter_with_orbit_detection(c, max_iter):
+	period = 8
+	iter = 0
+	while period != max_iter:
+		mem = z
+		period = period*2
+		if period > max_iter: period = max_iter
+		
+		while iter < period:
+			iter = iter + 1
+			z = z**2 + c 
+			
+			if abs(z) > 4: return iter 
+			if z == mem: return max_iter
+				
+\end{lstlisting}
+Der obige Code prüft auf Perioden mit Länge 8, dann 16, 32, ...
+
 \subsubsection{Potenz durch Quadrieren}
-Da die eingebauten Taichi Funktionen für komplexe Zahlen viel zu langsam sind, muss leider Potenzierung $z^n$ (n ist ganzzahlig \& positiv) selber implementiert werden. Ein naiver Approach wäre, $1$ $n$ Mal mit z zu multiplizieren ($n$ Schritte). Wir können aber stattdessen Potenzierung wie folgt rekursiv definieren: 
+Da die eingebauten Taichi Funktionen für komplexe Zahlen viel zu langsam sind, muss leider Potenzierung $z^n$ (n ist ganzzahlig \& positiv) selber implementiert werden. Ein naiver Approach wäre, $n$ Mal mit z mit sich selbst zu multiplizieren ($n$ Schritte). Wir können aber stattdessen Potenzierung wie folgt rekursiv definieren: 
 \begin{itemize}
 \item $z^n = (z^{n/2})^2$ für gerade $n$ 
 \item $z^n = (z^{n-1}).z$ für ungerade $n$
@@ -316,7 +413,22 @@ Da die eingebauten Taichi Funktionen für komplexe Zahlen viel zu langsam sind, 
 Beispielsweise wäre $z^{17} = (((z^2)^2)^2)^2 . z$, mit vier Mal Quadrieren und ein Mal Multiplizieren, anstatt 17 Multiplikationen. Allgemein wird die Anzahl der Schritte von $n$ auf $\log n$ reduziert. Für größe $n$ bleibt dies allerdings noch zu langsam, aber es ist für dieses Projekt hinreichend, wobei maximal nur $z^{10}$ berechnet wird.
 
 \section{Schwachstellen \& Verbesserungen}
-Langsam, python ist nicht schnell, alternative sind Shader mit pyopengl guter Performanz, lag spikes bei schwarzen Regionen, taichi code schwer lesbar
+Alles in allem bin ich zufrieden mit der Performanz des Programms. Dennoch gibt es auch einige Probleme, die wegen Mangel der Zeit oder technischer Fähigkeit nicht gelöst wurden:
+\subsection{Optik}
+\begin{itemize}
+\item Beim Zoomen sieht man oft einen glitzernden Effekt. Dies ist leider ein Nebeneffekt des Renderns mit dem Xaos-Algorithmus.
+\item Bei bestimmten Regionen des Mandelbrots ist das Bildrauschen sehr stark ausgeprägt, da keine Antialiasing implementiert wurde.
+\end{itemize}
+
+\subsection{Geschwindigkeit}
+\begin{itemize}
+\item Trotz der Orbit-Erkennung verlangsamt sich / laggt das Programm erheblich beim Rendern von Punkten innerhalb der Mandelbrot-Menge.
+\item Statt taichi kann \textbf{pyopengl} benutzt werden, um direkt mit Shader bzw. der GPU zu arbeiten für erhöhte Leistung.
+
+\end{itemize}
+
+\section{Fazit}
+Zusammenfassend lässt sich sagen, dass dieses Projekt eine gute Lektion in Sachen der Parallelisierung, Computergrafik und Python im Allgemeinen. Ohne großen Verlust der Codelesbarkeit kann Python ziemlich leistungsfähig sein. Zukünftig wird eventuell noch Bildnachbearbeitung implementiert und ein neues Modul gesucht, um die GUI zu verbessern.
 \printbibliography
 
 \end{document} % This is the end of the document
